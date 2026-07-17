@@ -1,0 +1,10 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Keep production data closed until the app's authentication model is defined.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

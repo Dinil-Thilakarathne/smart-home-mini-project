@@ -1,0 +1,21 @@
+{
+  "name": "@smart-home/functions",
+  "version": "0.1.0",
+  "private": true,
+  "main": "lib/index.js",
+  "engines": {
+    "node": "22"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "pnpm run build && firebase emulators:start --config ../../firebase.json --only firestore,functions",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "firebase-admin": "latest",
+    "firebase-functions": "latest"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.3"
+  }
+}

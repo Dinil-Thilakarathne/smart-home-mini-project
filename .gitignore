@@ -1,0 +1,39 @@
+# Dependencies and package-manager state
+node_modules/
+.pnpm-store/
+
+# Build outputs and caches
+.turbo/
+.next/
+dist/
+lib/
+coverage/
+.expo/
+web-build/
+
+# Native generated projects
+ios/
+android/
+
+# Firebase
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Editor and operating system files
+.DS_Store
+*.tsbuildinfo
+
+# Package-manager migration backups
+.git.pre-monorepo-backup/
+.package-lock.pre-pnpm.json
+
+
+/docs
+.code-review-graph

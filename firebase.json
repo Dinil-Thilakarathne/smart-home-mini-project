@@ -1,0 +1,24 @@
+{
+  "functions": {
+    "source": "apps/functions",
+    "codebase": "smart-home",
+    "predeploy": ["pnpm --dir apps/functions run build"]
+  },
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "emulators": {
+    "functions": {
+      "port": 5001
+    },
+    "firestore": {
+      "port": 8080
+    },
+    "ui": {
+      "enabled": true,
+      "port": 4000
+    },
+    "singleProjectMode": true
+  }
+}
