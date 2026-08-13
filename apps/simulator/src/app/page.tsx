@@ -1,65 +1,289 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
-  return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
-  );
+import type { Device } from "@smart-home/shared";
+import {
+	DEMO_HOUSEHOLD_ID,
+	deviceCollectionPath,
+	devicePath,
+	switchCollectionPath,
+} from "@smart-home/shared";
+import { signInAnonymously } from "firebase/auth";
+import {
+	collection,
+	doc,
+	onSnapshot,
+	orderBy,
+	query,
+	updateDoc,
+} from "firebase/firestore";
+import { useEffect, useMemo, useState } from "react";
+import { firebaseAuth, firestore } from "@/lib/firebase";
+
+export default function SimulatorPage() {
+	const [devices, setDevices] = useState<Device[]>([]);
+	const [message, setMessage] = useState(
+		"Connecting to the local hardware state...",
+	);
+	const [filter, setFilter] = useState("all");
+	const [events, setEvents] = useState<string[]>([]);
+
+	useEffect(() => {
+		let unsubscribe = () => {};
+		signInAnonymously(firebaseAuth)
+			.then(() => {
+				const devicesQuery = query(
+					collection(firestore, deviceCollectionPath(DEMO_HOUSEHOLD_ID)),
+					orderBy("name"),
+				);
+				unsubscribe = onSnapshot(
+					devicesQuery,
+					(snapshot) => {
+						setDevices(
+							snapshot.docs.map(
+								(item) => ({ id: item.id, ...item.data() }) as Device,
+							),
+						);
+						setEvents((current) =>
+							[
+								`Device state synchronized at ${new Date().toLocaleTimeString()}`,
+								...current,
+							].slice(0, 8),
+						);
+						setMessage("Live Firestore connection");
+					},
+					() =>
+						setMessage(
+							"Unable to read Firestore. Start the emulators and seedDemo.",
+						),
+				);
+				const eventsQuery = query(
+					collection(firestore, `households/${DEMO_HOUSEHOLD_ID}/events`),
+					orderBy("createdAt", "desc"),
+				);
+				onSnapshot(eventsQuery, (snapshot) => {
+					setEvents(
+						snapshot.docs.slice(0, 8).map((item) => String(item.data().message)),
+					);
+				});
+			})
+			.catch(() => setMessage("Unable to authenticate with the emulator."));
+		return () => unsubscribe();
+	}, []);
+
+	async function setDeviceStatus(device: Device) {
+		const status = device.status === "ON" ? "OFF" : "ON";
+		await updateDoc(doc(firestore, devicePath(DEMO_HOUSEHOLD_ID, device.id)), {
+			status,
+			lastChangedSource: "SIMULATOR",
+			updatedAt: new Date().toISOString(),
+		});
+		setEvents((current) =>
+			[`SIMULATOR changed ${device.name} to ${status}`, ...current].slice(0, 8),
+		);
+	}
+
+	async function setHealth(device: Device, health: Device["health"]) {
+		await updateDoc(doc(firestore, devicePath(DEMO_HOUSEHOLD_ID, device.id)), {
+			health,
+			updatedAt: new Date().toISOString(),
+		});
+		setEvents((current) =>
+			[`SIMULATOR set ${device.name} health to ${health}`, ...current].slice(
+				0,
+				8,
+			),
+		);
+	}
+
+	const visibleDevices = useMemo(
+		() =>
+			devices.filter(
+				(device) =>
+					filter === "all" ||
+					device.type === filter ||
+					device.floorId === filter ||
+					device.health === filter,
+			),
+		[devices, filter],
+	);
+
+	return (
+		<main className="mx-auto min-h-screen w-full max-w-5xl bg-[#f5f6f2] px-6 py-10 text-[#17201b]">
+			<header className="mb-8 flex items-end justify-between gap-4">
+				<div>
+					<p className="text-xs font-bold tracking-[0.2em] text-[#6e776f]">
+						HARDWARE SIMULATOR
+					</p>
+					<h1 className="mt-2 text-4xl font-bold tracking-tight">
+						Physical device state
+					</h1>
+				</div>
+				<p className="rounded-full bg-white px-4 py-2 text-sm text-[#2d6a4f]">
+					{message}
+				</p>
+			</header>
+			<div className="mb-5 flex flex-wrap gap-2">
+				{[
+					"all",
+					"light",
+					"iron",
+					"switch-unit",
+					"ground-floor",
+					"upper-floor",
+					"DISCONNECTED",
+				].map((item) => (
+					<button
+						key={item}
+						onClick={() => setFilter(item)}
+						className={`rounded-full px-3 py-2 text-xs font-bold ${filter === item ? "bg-[#2d6a4f] text-white" : "bg-white text-[#6e776f]"}`}
+					>
+						{item}
+					</button>
+				))}
+			</div>
+			<section className="grid gap-4 md:grid-cols-2">
+				{visibleDevices.map((device) => (
+					<article
+						key={device.id}
+						className="rounded-2xl border border-[#e1e7e0] bg-white p-5 shadow-sm"
+					>
+						<div className="flex items-start justify-between gap-4">
+							<div>
+								<p className="text-xs font-bold uppercase tracking-wider text-[#6e776f]">
+									{device.type}
+								</p>
+								<h2 className="mt-1 text-xl font-bold">{device.name}</h2>
+							</div>
+							<span
+								className={`rounded-full px-3 py-1 text-xs font-bold ${device.status === "ON" ? "bg-[#d8e9df] text-[#2d6a4f]" : "bg-[#f0f2ed] text-[#6e776f]"}`}
+							>
+								{device.status}
+							</span>
+						</div>
+						<div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+							<p className="text-sm text-[#6e776f]">
+								{device.health} · {device.floorId}
+							</p>
+							<div className="flex flex-wrap gap-2">
+								<button
+									onClick={() => void setHealth(device, "CONNECTED")}
+									className="rounded-lg border border-[#d5ded6] px-2 py-1 text-xs"
+								>
+									Online
+								</button>
+								<button
+									onClick={() => void setHealth(device, "ERROR")}
+									className="rounded-lg border border-[#edc9b9] px-2 py-1 text-xs text-[#a33a2b]"
+								>
+									Error
+								</button>
+								<button
+									onClick={() => void setHealth(device, "DISCONNECTED")}
+									className="rounded-lg border border-[#edc9b9] px-2 py-1 text-xs text-[#a33a2b]"
+								>
+									Offline
+								</button>
+								<button
+									onClick={() => void setDeviceStatus(device)}
+									className="rounded-xl bg-[#2d6a4f] px-4 py-2 text-sm font-bold text-white"
+								>
+									Toggle
+								</button>
+							</div>
+						</div>
+						{device.type === "switch-unit" && (
+							<SwitchPanel
+								deviceId={device.id}
+								onEvent={(event) =>
+									setEvents((current) => [event, ...current].slice(0, 8))
+								}
+							/>
+						)}
+					</article>
+				))}
+			</section>
+			<section className="mt-8 rounded-2xl border border-[#e1e7e0] bg-white p-5">
+				<h2 className="text-lg font-bold">Event log</h2>
+				<div className="mt-3 space-y-2">
+					{events.length === 0 ? (
+						<p className="text-sm text-[#6e776f]">No events yet.</p>
+					) : (
+						events.map((event, index) => (
+							<p
+								key={`${event}-${index}`}
+								className="border-b border-[#f0f2ed] pb-2 text-sm text-[#6e776f]"
+							>
+								{event}
+							</p>
+						))
+					)}
+				</div>
+			</section>
+			{devices.length === 0 && (
+				<p className="rounded-2xl border border-dashed border-[#b8c4ba] p-8 text-center text-[#6e776f]">
+					No seeded devices yet. Start Firebase and call the local seedDemo
+					function.
+				</p>
+			)}
+		</main>
+	);
+}
+
+function SwitchPanel({
+	deviceId,
+	onEvent,
+}: {
+	deviceId: string;
+	onEvent: (event: string) => void;
+}) {
+	const [switches, setSwitches] = useState<
+		{ id: string; name: string; status: string }[]
+	>([]);
+	useEffect(
+		() =>
+			onSnapshot(
+				collection(
+					firestore,
+					switchCollectionPath(DEMO_HOUSEHOLD_ID, deviceId),
+				),
+				(snapshot) =>
+					setSwitches(
+						snapshot.docs.map((item) => ({
+							id: item.id,
+							name: String(item.data().name),
+							status: String(item.data().status),
+						})),
+					),
+			),
+		[deviceId],
+	);
+	async function toggle(item: { id: string; name: string; status: string }) {
+		const status = item.status === "ON" ? "OFF" : "ON";
+		await updateDoc(
+			doc(
+				firestore,
+				`${switchCollectionPath(DEMO_HOUSEHOLD_ID, deviceId)}/${item.id}`,
+			),
+			{ status, updatedAt: new Date().toISOString() },
+		);
+		onEvent(`SIMULATOR changed ${item.name} to ${status}`);
+	}
+	return (
+		<div className="mt-4 rounded-xl bg-[#f5f6f2] p-3">
+			<p className="text-xs font-bold uppercase tracking-wider text-[#6e776f]">
+				Individual switches
+			</p>
+			<div className="mt-2 flex flex-wrap gap-2">
+				{switches.map((item) => (
+					<button
+						key={item.id}
+						onClick={() => void toggle(item)}
+						className="rounded-lg bg-white px-3 py-2 text-xs font-bold"
+					>
+						{item.name}: {item.status}
+					</button>
+				))}
+			</div>
+		</div>
+	);
 }

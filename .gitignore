@@ -35,5 +35,7 @@ ui-debug.log
 .package-lock.pre-pnpm.json
 
 
-/docs
+!/docs/
+/docs/*
+!/docs/IMPLEMENTATION_PLAN.md
 .code-review-graph

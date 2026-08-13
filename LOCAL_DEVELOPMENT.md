@@ -82,6 +82,13 @@ Terminal 1 — Firebase emulators:
 
 ```bash
 pnpm dev:firebase
+
+```
+
+After the emulators are ready, seed the demo household from another terminal:
+
+```bash
+pnpm seed:demo
 ```
 
 Terminal 2 — hardware simulator:
@@ -118,6 +125,8 @@ There are two distinct environments:
 The Firebase emulator configuration exists, but each client must also connect its Firebase SDK to the emulators before its reads and writes become local. Until that integration is present, verify the target environment before creating data.
 
 The current `firestore.rules` intentionally denies all client reads and writes until the authentication and security model is implemented. Firebase Console and trusted Admin SDK operations behave differently from client SDK requests, so a successful Console write does not prove that the mobile or simulator client can write.
+
+The current demo uses anonymous Firebase Auth against the local Auth emulator. Firestore client access is restricted to authenticated users and the seeded `demo-household`. The trusted Functions runtime owns safety cutoffs and schedule transitions.
 
 Do not deploy rules, indexes, or functions unless the team has agreed to change the shared Firebase project.
 
@@ -225,3 +234,13 @@ pnpm install --frozen-lockfile
 - [ ] Mobile app opens through Expo Go or a device simulator
 - [ ] `pnpm lint` and `pnpm typecheck` pass
 
+## 11. Demonstration checklist
+
+- [ ] Start Firebase emulators and run `pnpm seed:demo`.
+- [ ] Open the simulator and Expo Go on the same network.
+- [ ] Toggle a light from mobile and confirm the simulator updates.
+- [ ] Toggle a device from the simulator and confirm mobile updates.
+- [ ] Set a device to `ERROR` or `DISCONNECTED` and confirm mobile controls are disabled.
+- [ ] Toggle each switch in the switch unit independently.
+- [ ] Trigger `safetyCutoff` or wait for the scheduled safety evaluator and confirm the alert and usage record.
+- [ ] Verify a schedule boundary changes the light and records `SCHEDULE` in the event log.

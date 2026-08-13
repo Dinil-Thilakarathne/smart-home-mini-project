@@ -2,7 +2,8 @@
   "name": "@smart-home/functions",
   "version": "0.1.0",
   "private": true,
-  "main": "lib/index.js",
+  "main": "lib/apps/functions/src/index.js",
+  "type": "module",
   "engines": {
     "node": "22"
   },
@@ -12,6 +13,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@smart-home/shared": "workspace:*",
     "firebase-admin": "latest",
     "firebase-functions": "latest"
   },

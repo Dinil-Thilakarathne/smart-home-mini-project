@@ -1,0 +1,10 @@
+import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { demoDevices, demoFloors } from "@smart-home/shared";
+import { AppNav } from "@/components/app-nav";
+
+export default function FloorsScreen() {
+  return <SafeAreaView style={styles.safe}><ScrollView contentContainerStyle={styles.content}><Text style={styles.eyebrow}>LAYOUT</Text><Text style={styles.title}>Floors</Text><Text style={styles.body}>A spatial view of every connected device in your home.</Text>{demoFloors.map((floor) => { const devices = demoDevices.filter((device) => device.floorId === floor.id); return <View key={floor.id} style={styles.card}><Text style={styles.cardTitle}>{floor.name}</Text><Text style={styles.meta}>{devices.length} devices · {floor.gridColumns} × {floor.gridRows} grid</Text><View style={styles.grid}>{devices.map((device) => <View key={device.id} style={styles.marker}><Text style={styles.markerName}>{device.name}</Text><Text style={styles.markerState}>{device.status}</Text></View>)}</View></View>; })}</ScrollView><AppNav /></SafeAreaView>;
+}
+
+const styles = StyleSheet.create({ safe: { flex: 1, backgroundColor: "#F5F6F2" }, content: { padding: 22, gap: 16, paddingBottom: 30 }, eyebrow: { color: "#6E776F", fontSize: 11, fontWeight: "700", letterSpacing: 1.5 }, title: { color: "#17201B", fontSize: 30, fontWeight: "700", marginTop: 5 }, body: { color: "#6E776F", fontSize: 14, lineHeight: 20 }, card: { backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: "#E1E7E0", borderRadius: 18, padding: 16 }, cardTitle: { color: "#17201B", fontSize: 17, fontWeight: "700" }, meta: { color: "#6E776F", fontSize: 12, marginTop: 5 }, grid: { marginTop: 14, minHeight: 130, borderRadius: 12, backgroundColor: "#F5F6F2", padding: 10, gap: 8 }, marker: { alignSelf: "flex-start", backgroundColor: "#D8E9DF", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 7 }, markerName: { color: "#17201B", fontSize: 12, fontWeight: "700" }, markerState: { color: "#2D6A4F", fontSize: 10, marginTop: 2 } });

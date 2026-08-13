@@ -8,10 +8,16 @@
     "dev:mobile": "turbo run dev --filter=@smart-home/mobile",
     "dev:simulator": "turbo run dev --filter=@smart-home/simulator",
     "dev:firebase": "firebase emulators:start",
+    "seed:demo": "curl -fsS http://127.0.0.1:5001/mad-mini--project/us-central1/seedDemo",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test"
+  },
+  "pnpm": {
+    "overrides": {
+      "lightningcss": "1.30.1"
+    }
   },
   "devDependencies": {
     "firebase-tools": "^15.24.0",
