@@ -181,19 +181,14 @@ export default function SimulatorPage() {
 										</p>
 										<h2 className="mt-1 text-xl font-bold">{device.name}</h2>
 									</div>
-									<span
-										className={`rounded-full border px-3 py-1 text-xs font-bold ${state.badge}`}
-									>
-										{state.label}
-									</span>
+									<div className="flex flex-col items-end gap-1.5">
+										<span className={`rounded-full border px-3 py-1 text-xs font-bold ${state.power.badge}`}>{state.power.label}</span>
+										<span className={`rounded-full border px-3 py-1 text-xs font-bold ${state.health.badge}`}>{state.health.label}</span>
+									</div>
 								</div>
 								<div className="mt-5 flex flex-wrap items-center justify-between gap-3">
 									<div className="space-y-2 text-sm text-[#6e776f]">
-										<p
-											className={`inline-flex rounded-lg border px-2 py-1 text-xs font-bold ${state.health}`}
-										>
-											{device.health} · {device.floorId}
-										</p>
+										<p className="font-medium text-[#526057]">Connection: {state.health.label} · {device.floorId}</p>
 										<p className="font-medium text-[#2d6a4f]">
 											Layout: column {device.position.column}, row{" "}
 											{device.position.row} · {device.position.width ?? 2} ×{" "}
@@ -203,7 +198,7 @@ export default function SimulatorPage() {
 									<div className="flex flex-wrap gap-2">
 										<button
 											onClick={() => void setHealth(device, "CONNECTED")}
-											className="rounded-lg border border-[#d5ded6] px-2 py-1 text-xs"
+											className="rounded-lg border border-[#b8dec6] bg-[#e1f3e8] px-2 py-1 text-xs font-bold text-[#1e6240]"
 										>
 											Online
 										</button>
@@ -215,7 +210,7 @@ export default function SimulatorPage() {
 										</button>
 										<button
 											onClick={() => void setHealth(device, "DISCONNECTED")}
-											className="rounded-lg border border-[#edc9b9] px-2 py-1 text-xs text-[#a33a2b]"
+											className="rounded-lg border border-[#f2d49b] bg-[#fff3dd] px-2 py-1 text-xs font-bold text-[#87530e]"
 										>
 											Offline
 										</button>
@@ -278,28 +273,20 @@ export default function SimulatorPage() {
 }
 
 function simulatorState(device: Device) {
-	if (device.health === "ERROR" || device.status === "ERROR")
-		return {
-			label: "ERROR",
-			badge: "border-[#f2c1b8] bg-[#fde8e5] text-[#96382b]",
-			health: "border-[#f2c1b8] bg-[#fde8e5] text-[#96382b]",
-		};
-	if (device.health === "DISCONNECTED" || device.status === "DISCONNECTED")
-		return {
-			label: "OFFLINE",
-			badge: "border-[#f2d49b] bg-[#fff3dd] text-[#87530e]",
-			health: "border-[#f2d49b] bg-[#fff3dd] text-[#87530e]",
-		};
+	const health = device.health === "ERROR"
+		? { label: "ERROR", badge: "border-[#f2c1b8] bg-[#fde8e5] text-[#96382b]" }
+		: device.health === "DISCONNECTED"
+			? { label: "OFFLINE", badge: "border-[#f2d49b] bg-[#fff3dd] text-[#87530e]" }
+			: { label: "ONLINE", badge: "border-[#b8dec6] bg-[#e1f3e8] text-[#1e6240]" };
+	if (device.status === "ERROR")
+		return { power: { label: "FAILED", badge: "border-[#f2c1b8] bg-[#fde8e5] text-[#96382b]" }, health };
+	if (device.status === "DISCONNECTED")
+		return { power: { label: "OFFLINE", badge: "border-[#f2d49b] bg-[#fff3dd] text-[#87530e]" }, health };
 	if (device.status === "ON")
-		return {
-			label: "ON",
-			badge: "border-[#b8dec6] bg-[#e1f3e8] text-[#1e6240]",
-			health: "border-[#b8dec6] bg-[#e1f3e8] text-[#1e6240]",
-		};
+		return { power: { label: "POWER ON", badge: "border-[#b8dec6] bg-[#e1f3e8] text-[#1e6240]" }, health };
 	return {
-		label: "OFF",
-		badge: "border-[#d9e0da] bg-[#eef1ee] text-[#526057]",
-		health: "border-[#d9e0da] bg-[#eef1ee] text-[#526057]",
+		power: { label: "POWER OFF", badge: "border-[#d9e0da] bg-[#eef1ee] text-[#526057]" },
+		health,
 	};
 }
 
