@@ -7,6 +7,8 @@ node_modules/
 .next/
 dist/
 lib/
+!apps/mobile/src/lib/
+!apps/mobile/src/lib/*.ts
 coverage/
 .expo/
 web-build/
@@ -35,5 +37,8 @@ ui-debug.log
 .package-lock.pre-pnpm.json
 
 
-/docs
+!/docs/
+/docs/*
+!/docs/IMPLEMENTATION_PLAN.md
+!/docs/TECHNICAL_REPORT.md
 .code-review-graph
