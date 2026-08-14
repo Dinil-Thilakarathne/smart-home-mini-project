@@ -3,6 +3,7 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import { onDocumentUpdated } from "firebase-functions/v2/firestore";
 import { getApps, initializeApp } from "firebase-admin/app";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
+import { isSafetyCutoffDue, isScheduleActive } from "./automation.js";
 
 const adminApp = getApps().length ? getApps()[0] : initializeApp();
 const db = getFirestore(adminApp);
@@ -14,10 +15,12 @@ const demoFloors = [
   { id: "upper-floor", name: "Upper floor", order: 1, gridColumns: 6, gridRows: 4 },
 ];
 const demoDevices = [
-  { id: "kitchen-outlet", name: "Kitchen outlet", type: "outlet", status: "OFF", health: "CONNECTED", floorId: "ground-floor", position: { column: 1, row: 1 }, capabilities: { canToggle: true }, lastChangedSource: "USER", updatedAt: "2026-01-01T00:00:00.000Z" },
-  { id: "living-room-light", name: "Living room light", type: "light", status: "OFF", health: "CONNECTED", floorId: "ground-floor", position: { column: 2, row: 2 }, capabilities: { canToggle: true, supportsSchedule: true }, lastChangedSource: "USER", updatedAt: "2026-01-01T00:00:00.000Z" },
-  { id: "kitchen-iron", name: "Kitchen iron", type: "iron", status: "ON", health: "CONNECTED", floorId: "ground-floor", position: { column: 5, row: 1 }, capabilities: { canToggle: true, safetyMaxDurationMinutes: 30 }, lastChangedSource: "SIMULATOR", updatedAt: "2026-01-01T00:00:00.000Z" },
-  { id: "bedroom-switch-unit", name: "Bedroom switches", type: "switch-unit", status: "OFF", health: "CONNECTED", floorId: "upper-floor", position: { column: 3, row: 2 }, capabilities: { canToggle: true }, lastChangedSource: "USER", updatedAt: "2026-01-01T00:00:00.000Z" },
+  { id: "kitchen-outlet", name: "Kitchen outlet", type: "outlet", status: "OFF", health: "CONNECTED", floorId: "ground-floor", position: { column: 1, row: 1, width: 2, height: 2 }, capabilities: { canToggle: true }, lastChangedSource: "USER", updatedAt: "2026-01-01T00:00:00.000Z" },
+  { id: "living-room-light", name: "Living room light", type: "light", status: "OFF", health: "CONNECTED", floorId: "ground-floor", position: { column: 3, row: 3, width: 2, height: 2 }, capabilities: { canToggle: true, supportsSchedule: true }, lastChangedSource: "USER", updatedAt: "2026-01-01T00:00:00.000Z" },
+  { id: "kitchen-iron", name: "Kitchen iron", type: "iron", status: "ON", health: "CONNECTED", floorId: "ground-floor", position: { column: 5, row: 1, width: 2, height: 2 }, capabilities: { canToggle: true, safetyMaxDurationMinutes: 30 }, lastChangedSource: "SIMULATOR", updatedAt: "2026-01-01T00:00:00.000Z" },
+  { id: "front-door-camera", name: "Front door camera", type: "camera", status: "ON", health: "CONNECTED", floorId: "ground-floor", position: { column: 3, row: 1, width: 1, height: 1 }, capabilities: { canToggle: false }, lastChangedSource: "SIMULATOR", updatedAt: "2026-01-01T00:00:00.000Z" },
+  { id: "bedroom-switch-unit", name: "Bedroom switches", type: "switch-unit", status: "OFF", health: "CONNECTED", floorId: "upper-floor", position: { column: 3, row: 2, width: 2, height: 2 }, capabilities: { canToggle: true }, lastChangedSource: "USER", updatedAt: "2026-01-01T00:00:00.000Z" },
+  { id: "garden-camera", name: "Garden camera", type: "camera", status: "ON", health: "CONNECTED", floorId: "upper-floor", position: { column: 5, row: 1, width: 1, height: 1 }, capabilities: { canToggle: false }, lastChangedSource: "SIMULATOR", updatedAt: "2026-01-01T00:00:00.000Z" },
 ];
 const demoSchedules = [{ id: "living-room-evening-light", householdId: DEMO_HOUSEHOLD_ID, deviceId: "living-room-light", days: [1, 2, 3, 4, 5, 6, 0], startTime: "18:00", endTime: "23:00", enabled: true, timezone: "Asia/Colombo" }];
 const demoSwitches = [
@@ -27,17 +30,6 @@ const demoSwitches = [
   { id: "bedroom-switch-4", deviceId: "bedroom-switch-unit", name: "Fan", index: 3, status: "OFF", updatedAt: "2026-01-01T00:00:00.000Z" },
   { id: "bedroom-switch-5", deviceId: "bedroom-switch-unit", name: "Accent light", index: 4, status: "OFF", updatedAt: "2026-01-01T00:00:00.000Z" },
 ];
-
-function localTimeParts(date: Date, timezone: string) {
-  const parts = new Intl.DateTimeFormat("en-GB", { timeZone: timezone, weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(date);
-  const weekday = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"].indexOf(parts.find((part) => part.type === "weekday")?.value.toLowerCase() ?? "sun");
-  return { weekday, time: `${parts.find((part) => part.type === "hour")?.value ?? "00"}:${parts.find((part) => part.type === "minute")?.value ?? "00"}` };
-}
-
-function isScheduleActive(schedule: { days: number[]; startTime: string; endTime: string; timezone: string }, date: Date) {
-  const local = localTimeParts(date, schedule.timezone);
-  return schedule.days.includes(local.weekday) && local.time >= schedule.startTime && local.time < schedule.endTime;
-}
 
 export const health = onRequest((_request, response) => {
   response.json({ service: "smart-home-functions", status: "ok" });
@@ -76,8 +68,7 @@ export const safetyCutoff = onRequest(async (request, response) => {
   response.json({ deviceId, cutoff: true, alertId: alertRef.id, usageId: usageRef.id });
 });
 
-export const evaluateSafetyAndSchedules = onSchedule("every 1 minutes", async () => {
-  const now = new Date();
+async function runAutomationEvaluation(now = new Date()) {
   const devices = await db.collection(`households/${DEMO_HOUSEHOLD_ID}/devices`).get();
   const batch = db.batch();
   let writes = 0;
@@ -85,7 +76,7 @@ export const evaluateSafetyAndSchedules = onSchedule("every 1 minutes", async ()
     const device = item.data();
     const maxMinutes = device.capabilities?.safetyMaxDurationMinutes;
     const updatedAt = device.updatedAt?.toDate?.() ?? new Date(device.updatedAt);
-    if (device.type === "iron" && device.status === "ON" && maxMinutes && now.getTime() - updatedAt.getTime() >= maxMinutes * 60_000) {
+    if (device.type === "iron" && device.status === "ON" && maxMinutes && isSafetyCutoffDue(updatedAt, maxMinutes, now)) {
       batch.update(item.ref, { status: "OFF", lastChangedSource: "SAFETY", updatedAt: Timestamp.fromDate(now) });
       const alertRef = db.collection(`households/${DEMO_HOUSEHOLD_ID}/alerts`).doc(`auto-safety-${item.id}-${updatedAt.getTime()}`);
       batch.set(alertRef, { id: alertRef.id, householdId: DEMO_HOUSEHOLD_ID, severity: "CRITICAL", message: `${device.name} was turned off by safety monitoring.`, source: "SAFETY", deviceId: item.id, read: false, createdAt: Timestamp.fromDate(now) }, { merge: true });
@@ -114,6 +105,17 @@ export const evaluateSafetyAndSchedules = onSchedule("every 1 minutes", async ()
     }
   }
   if (scheduleWrites) await scheduleBatch.commit();
+}
+
+/** Cloud Scheduler invokes this in deployed environments. */
+export const evaluateSafetyAndSchedules = onSchedule("every 1 minutes", async () => {
+  await runAutomationEvaluation();
+});
+
+/** Lets the local Emulator Suite execute the same scheduled evaluation on demand. */
+export const runAutomation = onRequest(async (_request, response) => {
+  await runAutomationEvaluation();
+  response.json({ evaluated: true });
 });
 
 /** Records ordinary ON to OFF usage sessions. Safety cutoffs create their own
@@ -121,8 +123,7 @@ export const evaluateSafetyAndSchedules = onSchedule("every 1 minutes", async ()
 export const trackDeviceUsage = onDocumentUpdated("households/{householdId}/devices/{deviceId}", async (event) => {
   const before = event.data?.before.data();
   const after = event.data?.after.data();
-  if (!before || !after || before.status === after.status || after.status === "ERROR" || after.status === "DISCONNECTED") return;
-  if (after.lastChangedSource === "SAFETY") return;
+  if (!before || !after || before.status === after.status || after.status === "ERROR" || after.status === "DISCONNECTED" || after.lastChangedSource === "SAFETY") return;
 
   const householdId = event.params.householdId;
   const deviceId = event.params.deviceId;

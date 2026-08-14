@@ -8,6 +8,7 @@
     "dev:mobile": "turbo run dev --filter=@smart-home/mobile",
     "dev:simulator": "turbo run dev --filter=@smart-home/simulator",
     "dev:firebase": "firebase emulators:start",
+    "dev:automation": "node scripts/local-automation.mjs",
     "seed:demo": "curl -fsS http://127.0.0.1:5001/mad-mini--project/us-central1/seedDemo",
     "build": "turbo run build",
     "lint": "turbo run lint",

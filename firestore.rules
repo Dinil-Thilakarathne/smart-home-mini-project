@@ -19,13 +19,42 @@ service cloud.firestore {
       allow read: if isDemoHousehold(householdId);
       allow update: if isDemoHousehold(householdId)
         && request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['status', 'health', 'lastChangedSource', 'updatedAt']);
+          .hasOnly(['status', 'health', 'lastChangedSource', 'updatedAt', 'position'])
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['position'])
+          || (request.resource.data.position.column is int
+            && request.resource.data.position.row is int
+            && request.resource.data.position.column >= 1
+            && request.resource.data.position.row >= 1
+            && request.resource.data.position.width is int
+            && request.resource.data.position.height is int
+            && request.resource.data.position.width >= 1
+            && request.resource.data.position.height >= 1));
+      allow update: if isDemoHousehold(householdId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['capabilities', 'updatedAt'])
+        && resource.data.type == 'iron'
+        && request.resource.data.capabilities.canToggle == resource.data.capabilities.canToggle
+        && request.resource.data.capabilities.safetyMaxDurationMinutes is int
+        && request.resource.data.capabilities.safetyMaxDurationMinutes >= 1
+        && request.resource.data.capabilities.safetyMaxDurationMinutes <= 240;
       allow create, delete: if false;
     }
 
     match /households/{householdId}/floors/{floorId} {
       allow read: if isDemoHousehold(householdId);
       allow write: if false;
+    }
+
+    match /households/{householdId}/schedules/{scheduleId} {
+      allow read: if isDemoHousehold(householdId);
+      allow update: if isDemoHousehold(householdId)
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['startTime', 'endTime', 'days', 'enabled', 'timezone'])
+        && request.resource.data.startTime is string
+        && request.resource.data.endTime is string
+        && request.resource.data.days is list
+        && request.resource.data.enabled is bool
+        && request.resource.data.timezone == 'Asia/Colombo';
+      allow create, delete: if false;
     }
 
     match /households/{householdId}/{collection}/{documentId} {

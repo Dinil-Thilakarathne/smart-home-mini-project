@@ -103,6 +103,14 @@ Terminal 3 — mobile app:
 pnpm dev:mobile
 ```
 
+Terminal 4 — local automation worker:
+
+```bash
+pnpm dev:automation
+```
+
+This worker invokes the Functions emulator immediately and then every minute. Keep it running to test iron safety cutoffs and light schedules locally without deploying Cloud Scheduler.
+
 Open `http://localhost:3000` for the simulator and `http://localhost:4000` for the Firebase Emulator UI. For the mobile app, scan Expo's QR code with Expo Go. Keep the computer and phone on the same Wi-Fi network.
 
 ### Alternative: start workspace development tasks together
@@ -128,6 +136,20 @@ The current `firestore.rules` intentionally denies all client reads and writes u
 
 The current demo uses anonymous Firebase Auth against the local Auth emulator. Firestore client access is restricted to authenticated users and the seeded `demo-household`. The trusted Functions runtime owns safety cutoffs and schedule transitions.
 
+Cloud Scheduler is not emulated locally, so the one-minute safety and lighting evaluator does not run by itself in the Emulator Suite. Use `pnpm dev:automation` to run the same evaluator every minute while developing. To execute it manually after waiting for a configured duration, call its local endpoint:
+
+```bash
+curl -fsS http://127.0.0.1:5001/mad-mini--project/us-central1/runAutomation
+```
+
+For an immediate safety-alert demonstration that does not wait for the configured duration, use:
+
+```bash
+curl -fsS "http://127.0.0.1:5001/mad-mini--project/us-central1/safetyCutoff?deviceId=kitchen-iron"
+```
+
+When the functions are deployed to the selected Firebase project, Cloud Scheduler invokes `evaluateSafetyAndSchedules` every minute automatically.
+
 Do not deploy rules, indexes, or functions unless the team has agreed to change the shared Firebase project.
 
 ## 7. Normal daily workflow
@@ -147,6 +169,7 @@ pnpm install --frozen-lockfile
 pnpm dev:firebase
 pnpm dev:simulator
 pnpm dev:mobile
+pnpm dev:automation
 ```
 
 Commit source changes together with any intentional `package.json` and `pnpm-lock.yaml` changes. Do not commit `.env` files, credentials, generated builds, or emulator data.
@@ -242,5 +265,5 @@ pnpm install --frozen-lockfile
 - [ ] Toggle a device from the simulator and confirm mobile updates.
 - [ ] Set a device to `ERROR` or `DISCONNECTED` and confirm mobile controls are disabled.
 - [ ] Toggle each switch in the switch unit independently.
-- [ ] Trigger `safetyCutoff` or wait for the scheduled safety evaluator and confirm the alert and usage record.
+- [ ] Start `pnpm dev:automation`, wait for the configured safety duration, and confirm the iron turns OFF with an alert and usage record.
 - [ ] Verify a schedule boundary changes the light and records `SCHEDULE` in the event log.

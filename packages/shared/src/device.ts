@@ -33,6 +33,8 @@ export type DeviceHealth = (typeof DEVICE_HEALTH)[number];
 export interface DevicePosition {
   column: number;
   row: number;
+  width: number;
+  height: number;
 }
 
 export interface DeviceCapabilities {

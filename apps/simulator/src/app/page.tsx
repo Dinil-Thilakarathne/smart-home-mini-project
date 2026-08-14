@@ -62,7 +62,9 @@ export default function SimulatorPage() {
 				);
 				onSnapshot(eventsQuery, (snapshot) => {
 					setEvents(
-						snapshot.docs.slice(0, 8).map((item) => String(item.data().message)),
+						snapshot.docs
+							.slice(0, 8)
+							.map((item) => String(item.data().message)),
 					);
 				});
 			})
@@ -72,27 +74,47 @@ export default function SimulatorPage() {
 
 	async function setDeviceStatus(device: Device) {
 		const status = device.status === "ON" ? "OFF" : "ON";
-		await updateDoc(doc(firestore, devicePath(DEMO_HOUSEHOLD_ID, device.id)), {
-			status,
-			lastChangedSource: "SIMULATOR",
-			updatedAt: new Date().toISOString(),
-		});
-		setEvents((current) =>
-			[`SIMULATOR changed ${device.name} to ${status}`, ...current].slice(0, 8),
-		);
+		try {
+			await updateDoc(
+				doc(firestore, devicePath(DEMO_HOUSEHOLD_ID, device.id)),
+				{
+					status,
+					lastChangedSource: "SIMULATOR",
+					updatedAt: new Date().toISOString(),
+				},
+			);
+			setEvents((current) =>
+				[`SIMULATOR changed ${device.name} to ${status}`, ...current].slice(
+					0,
+					8,
+				),
+			);
+			setMessage(`${device.name} changed to ${status}`);
+		} catch {
+			setMessage(
+				`Could not update ${device.name}. Check the emulator connection.`,
+			);
+		}
 	}
 
 	async function setHealth(device: Device, health: Device["health"]) {
-		await updateDoc(doc(firestore, devicePath(DEMO_HOUSEHOLD_ID, device.id)), {
-			health,
-			updatedAt: new Date().toISOString(),
-		});
-		setEvents((current) =>
-			[`SIMULATOR set ${device.name} health to ${health}`, ...current].slice(
-				0,
-				8,
-			),
-		);
+		try {
+			await updateDoc(
+				doc(firestore, devicePath(DEMO_HOUSEHOLD_ID, device.id)),
+				{ health, updatedAt: new Date().toISOString() },
+			);
+			setEvents((current) =>
+				[`SIMULATOR set ${device.name} health to ${health}`, ...current].slice(
+					0,
+					8,
+				),
+			);
+			setMessage(`${device.name} health set to ${health}`);
+		} catch {
+			setMessage(
+				`Could not update ${device.name}. Check the emulator connection.`,
+			);
+		}
 	}
 
 	const visibleDevices = useMemo(
@@ -125,8 +147,10 @@ export default function SimulatorPage() {
 			<div className="mb-5 flex flex-wrap gap-2">
 				{[
 					"all",
+					"outlet",
 					"light",
 					"iron",
+					"camera",
 					"switch-unit",
 					"ground-floor",
 					"upper-floor",
@@ -142,65 +166,89 @@ export default function SimulatorPage() {
 				))}
 			</div>
 			<section className="grid gap-4 md:grid-cols-2">
-				{visibleDevices.map((device) => (
-					<article
-						key={device.id}
-						className="rounded-2xl border border-[#e1e7e0] bg-white p-5 shadow-sm"
-					>
-						<div className="flex items-start justify-between gap-4">
-							<div>
-								<p className="text-xs font-bold uppercase tracking-wider text-[#6e776f]">
-									{device.type}
-								</p>
-								<h2 className="mt-1 text-xl font-bold">{device.name}</h2>
-							</div>
-							<span
-								className={`rounded-full px-3 py-1 text-xs font-bold ${device.status === "ON" ? "bg-[#d8e9df] text-[#2d6a4f]" : "bg-[#f0f2ed] text-[#6e776f]"}`}
+				{visibleDevices.map((device) =>
+					(() => {
+						const state = simulatorState(device);
+						return (
+							<article
+								key={device.id}
+								className="rounded-2xl border border-[#e1e7e0] bg-white p-5 shadow-sm"
 							>
-								{device.status}
-							</span>
-						</div>
-						<div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-							<p className="text-sm text-[#6e776f]">
-								{device.health} · {device.floorId}
-							</p>
-							<div className="flex flex-wrap gap-2">
-								<button
-									onClick={() => void setHealth(device, "CONNECTED")}
-									className="rounded-lg border border-[#d5ded6] px-2 py-1 text-xs"
-								>
-									Online
-								</button>
-								<button
-									onClick={() => void setHealth(device, "ERROR")}
-									className="rounded-lg border border-[#edc9b9] px-2 py-1 text-xs text-[#a33a2b]"
-								>
-									Error
-								</button>
-								<button
-									onClick={() => void setHealth(device, "DISCONNECTED")}
-									className="rounded-lg border border-[#edc9b9] px-2 py-1 text-xs text-[#a33a2b]"
-								>
-									Offline
-								</button>
-								<button
-									onClick={() => void setDeviceStatus(device)}
-									className="rounded-xl bg-[#2d6a4f] px-4 py-2 text-sm font-bold text-white"
-								>
-									Toggle
-								</button>
-							</div>
-						</div>
-						{device.type === "switch-unit" && (
-							<SwitchPanel
-								deviceId={device.id}
-								onEvent={(event) =>
-									setEvents((current) => [event, ...current].slice(0, 8))
-								}
-							/>
-						)}
-					</article>
-				))}
+								<div className="flex items-start justify-between gap-4">
+									<div>
+										<p className="text-xs font-bold uppercase tracking-wider text-[#6e776f]">
+											{device.type}
+										</p>
+										<h2 className="mt-1 text-xl font-bold">{device.name}</h2>
+									</div>
+									<span
+										className={`rounded-full border px-3 py-1 text-xs font-bold ${state.badge}`}
+									>
+										{state.label}
+									</span>
+								</div>
+								<div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+									<div className="space-y-2 text-sm text-[#6e776f]">
+										<p
+											className={`inline-flex rounded-lg border px-2 py-1 text-xs font-bold ${state.health}`}
+										>
+											{device.health} · {device.floorId}
+										</p>
+										<p className="font-medium text-[#2d6a4f]">
+											Layout: column {device.position.column}, row{" "}
+											{device.position.row} · {device.position.width ?? 2} ×{" "}
+											{device.position.height ?? 2}
+										</p>
+									</div>
+									<div className="flex flex-wrap gap-2">
+										<button
+											onClick={() => void setHealth(device, "CONNECTED")}
+											className="rounded-lg border border-[#d5ded6] px-2 py-1 text-xs"
+										>
+											Online
+										</button>
+										<button
+											onClick={() => void setHealth(device, "ERROR")}
+											className="rounded-lg border border-[#edc9b9] px-2 py-1 text-xs text-[#a33a2b]"
+										>
+											Error
+										</button>
+										<button
+											onClick={() => void setHealth(device, "DISCONNECTED")}
+											className="rounded-lg border border-[#edc9b9] px-2 py-1 text-xs text-[#a33a2b]"
+										>
+											Offline
+										</button>
+										<button
+											onClick={() => void setDeviceStatus(device)}
+											disabled={
+										!device.capabilities.canToggle ||
+										device.health !== "CONNECTED" ||
+												device.status === "ERROR" ||
+												device.status === "DISCONNECTED"
+											}
+											className="rounded-xl bg-[#2d6a4f] px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:bg-[#b7c0b8]"
+										>
+										{!device.capabilities.canToggle
+											? "Monitoring only"
+											: device.health === "CONNECTED"
+											? "Toggle power"
+												: "Control unavailable"}
+										</button>
+									</div>
+								</div>
+								{device.type === "switch-unit" && (
+									<SwitchPanel
+										deviceId={device.id}
+										onEvent={(event) =>
+											setEvents((current) => [event, ...current].slice(0, 8))
+										}
+									/>
+								)}
+							</article>
+						);
+					})(),
+				)}
 			</section>
 			<section className="mt-8 rounded-2xl border border-[#e1e7e0] bg-white p-5">
 				<h2 className="text-lg font-bold">Event log</h2>
@@ -227,6 +275,32 @@ export default function SimulatorPage() {
 			)}
 		</main>
 	);
+}
+
+function simulatorState(device: Device) {
+	if (device.health === "ERROR" || device.status === "ERROR")
+		return {
+			label: "ERROR",
+			badge: "border-[#f2c1b8] bg-[#fde8e5] text-[#96382b]",
+			health: "border-[#f2c1b8] bg-[#fde8e5] text-[#96382b]",
+		};
+	if (device.health === "DISCONNECTED" || device.status === "DISCONNECTED")
+		return {
+			label: "OFFLINE",
+			badge: "border-[#f2d49b] bg-[#fff3dd] text-[#87530e]",
+			health: "border-[#f2d49b] bg-[#fff3dd] text-[#87530e]",
+		};
+	if (device.status === "ON")
+		return {
+			label: "ON",
+			badge: "border-[#b8dec6] bg-[#e1f3e8] text-[#1e6240]",
+			health: "border-[#b8dec6] bg-[#e1f3e8] text-[#1e6240]",
+		};
+	return {
+		label: "OFF",
+		badge: "border-[#d9e0da] bg-[#eef1ee] text-[#526057]",
+		health: "border-[#d9e0da] bg-[#eef1ee] text-[#526057]",
+	};
 }
 
 function SwitchPanel({
