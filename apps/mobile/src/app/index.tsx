@@ -13,6 +13,7 @@ import { useDemoAlerts, useDemoDevices, useDemoSwitches, useDemoUsage } from "@/
 import { firestore } from "@/lib/firebase";
 import { AppNav } from "@/components/app-nav";
 import { FeedbackBanner } from "@/components/feedback-banner";
+import { DismissibleAlert } from "@/components/dismissible-alert";
 import { statusColors, toneForAlert } from "@/constants/status";
 import { deviceTone, DeviceStateBadge } from "@/components/device-state";
 import Toast from "react-native-toast-message";
@@ -21,7 +22,7 @@ const colors = { background: "#EEF2EE", ink: "#132019", muted: "#68766C", card: 
 
 export default function HomeScreen() {
   const live = useDemoDevices();
-  const alerts = useDemoAlerts();
+  const { alerts, dismissAlert } = useDemoAlerts();
   const usage = useDemoUsage();
   const [pendingDevice, setPendingDevice] = useState<string | null>(null);
   const devices = live.ready ? live.devices : demoDevices;
@@ -48,7 +49,7 @@ export default function HomeScreen() {
           <Box style={styles.statusPill}><Box style={styles.statusDot} /><Text style={styles.statusText}>Connected</Text></Box>
         </Box>
         {live.error && <FeedbackBanner tone="danger" title="Sync unavailable" message={`${live.error} Check the emulator host and Wi-Fi connection.`} />}
-        {alerts.slice(0, 2).map((alert) => <FeedbackBanner key={alert.id} tone={toneForAlert(alert.severity)} title={`${alert.severity} · ${alert.time}`} message={alert.message} />)}
+        {alerts.slice(0, 2).map((alert) => <DismissibleAlert key={alert.id} tone={toneForAlert(alert.severity)} title={`${alert.severity} · ${alert.time}`} message={alert.message} onDismiss={() => void dismissAlert(alert.id).catch(() => Toast.show({ type: "error", text1: "Could not dismiss alert", text2: "Try again when the connection is restored." }))} />)}
         <Card style={styles.summaryCard}><CardHeader>
           <Text style={styles.cardLabel}>RIGHT NOW</Text>
           <Text style={styles.summaryTitle}>{activeDevices.length} device{activeDevices.length === 1 ? "" : "s"} active</Text>

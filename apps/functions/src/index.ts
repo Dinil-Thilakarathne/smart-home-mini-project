@@ -101,7 +101,9 @@ async function runAutomationEvaluation(now = new Date()) {
       scheduleBatch.update(deviceRef, { status: desiredStatus, lastChangedSource: "SCHEDULE", updatedAt: Timestamp.fromDate(now) });
       const eventRef = db.collection(`households/${DEMO_HOUSEHOLD_ID}/events`).doc(`schedule-${scheduleDoc.id}-${now.toISOString().slice(0, 13)}`);
       scheduleBatch.set(eventRef, { id: eventRef.id, householdId: DEMO_HOUSEHOLD_ID, deviceId: schedule.deviceId, source: "SCHEDULE", message: `${device.name} changed to ${desiredStatus} by schedule.`, createdAt: Timestamp.fromDate(now) }, { merge: true });
-      scheduleWrites += 2;
+      const alertRef = db.collection(`households/${DEMO_HOUSEHOLD_ID}/alerts`).doc(`schedule-alert-${scheduleDoc.id}-${desiredStatus}-${now.toISOString().slice(0, 13)}`);
+      scheduleBatch.set(alertRef, { id: alertRef.id, householdId: DEMO_HOUSEHOLD_ID, severity: "INFO", message: `${device.name} turned ${desiredStatus} by its schedule.`, source: "SCHEDULE", deviceId: schedule.deviceId, read: false, createdAt: Timestamp.fromDate(now) }, { merge: true });
+      scheduleWrites += 3;
     }
   }
   if (scheduleWrites) await scheduleBatch.commit();
@@ -116,6 +118,62 @@ export const evaluateSafetyAndSchedules = onSchedule("every 1 minutes", async ()
 export const runAutomation = onRequest(async (_request, response) => {
   await runAutomationEvaluation();
   response.json({ evaluated: true });
+});
+
+function describeDeviceChanges(before: Record<string, unknown>, after: Record<string, unknown>) {
+  const changes: string[] = [];
+  if (before.status !== after.status) changes.push(`Power changed from ${before.status} to ${after.status}.`);
+  if (before.health !== after.health) changes.push(`Connection changed from ${before.health} to ${after.health}.`);
+  if (JSON.stringify(before.position) !== JSON.stringify(after.position)) changes.push("Floor-plan position or size was updated.");
+  if (JSON.stringify(before.capabilities) !== JSON.stringify(after.capabilities)) changes.push("Device configuration was updated.");
+  if (before.lastChangedSource !== after.lastChangedSource && before.status === after.status) changes.push(`Update source changed to ${after.lastChangedSource ?? "UNKNOWN"}.`);
+  return changes;
+}
+
+/** Creates a durable audit trail for user, simulator, schedule, and safety changes. */
+export const logDeviceChange = onDocumentUpdated("households/{householdId}/devices/{deviceId}", async (event) => {
+  const before = event.data?.before.data();
+  const after = event.data?.after.data();
+  if (!before || !after) return;
+
+  const changes = describeDeviceChanges(before, after);
+  if (!changes.length) return;
+
+  const householdId = event.params.householdId;
+  const deviceId = event.params.deviceId;
+  const logRef = db.collection(`households/${householdId}/logs`).doc(`audit-${event.id}`);
+  await logRef.set({
+    id: logRef.id,
+    householdId,
+    deviceId,
+    deviceName: after.name ?? deviceId,
+    deviceType: after.type ?? "outlet",
+    source: after.lastChangedSource ?? "USER",
+    changes,
+    createdAt: Timestamp.now(),
+  });
+});
+
+/** Records individually addressable switch changes against their parent device. */
+export const logSwitchChange = onDocumentUpdated("households/{householdId}/devices/{deviceId}/switches/{switchId}", async (event) => {
+  const before = event.data?.before.data();
+  const after = event.data?.after.data();
+  if (!before || !after || before.status === after.status) return;
+
+  const householdId = event.params.householdId;
+  const deviceId = event.params.deviceId;
+  const device = (await db.doc(`households/${householdId}/devices/${deviceId}`).get()).data();
+  const logRef = db.collection(`households/${householdId}/logs`).doc(`switch-audit-${event.id}`);
+  await logRef.set({
+    id: logRef.id,
+    householdId,
+    deviceId,
+    deviceName: device?.name ?? deviceId,
+    deviceType: device?.type ?? "switch-unit",
+    source: "USER",
+    changes: [`${after.name ?? "Switch"} changed from ${before.status} to ${after.status}.`],
+    createdAt: Timestamp.now(),
+  });
 });
 
 /** Records ordinary ON to OFF usage sessions. Safety cutoffs create their own

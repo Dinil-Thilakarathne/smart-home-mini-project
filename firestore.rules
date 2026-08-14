@@ -57,9 +57,18 @@ service cloud.firestore {
       allow create, delete: if false;
     }
 
+    match /households/{householdId}/alerts/{alertId} {
+      allow read: if isDemoHousehold(householdId);
+      allow update: if isDemoHousehold(householdId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read'])
+        && resource.data.read != true
+        && request.resource.data.read == true;
+      allow create, delete: if false;
+    }
+
     match /households/{householdId}/{collection}/{documentId} {
       allow read: if isDemoHousehold(householdId)
-        && collection in ['schedules', 'alerts', 'usage', 'events'];
+        && collection in ['schedules', 'alerts', 'usage', 'events', 'logs'];
       allow write: if false;
     }
 

@@ -49,6 +49,17 @@ export interface UsageRecord {
   cutoffReason?: string;
 }
 
+export interface DeviceLog {
+  id: string;
+  householdId: string;
+  deviceId: string;
+  deviceName: string;
+  deviceType: DeviceType;
+  source: DeviceSource;
+  changes: string[];
+  createdAt: string;
+}
+
 export interface DeviceCommand {
   deviceId: string;
   status: Extract<DeviceStatus, "ON" | "OFF">;
@@ -64,6 +75,7 @@ export const COLLECTIONS = {
   schedules: "schedules",
   alerts: "alerts",
   usage: "usage",
+  logs: "logs",
 } as const;
 
 export function householdPath(householdId: string) {
@@ -96,4 +108,8 @@ export function alertCollectionPath(householdId: string) {
 
 export function usageCollectionPath(householdId: string) {
   return `${householdPath(householdId)}/${COLLECTIONS.usage}`;
+}
+
+export function deviceLogCollectionPath(householdId: string) {
+  return `${householdPath(householdId)}/${COLLECTIONS.logs}`;
 }

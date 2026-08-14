@@ -130,7 +130,7 @@ export default function SimulatorPage() {
 	);
 
 	return (
-		<main className="mx-auto min-h-screen w-full max-w-5xl bg-[#f5f6f2] px-6 py-10 text-[#17201b]">
+		<main className="mx-auto min-h-screen w-full  bg-[#f5f6f2] px-6 py-10 text-[#17201b]">
 			<header className="mb-8 flex items-end justify-between gap-4">
 				<div>
 					<p className="text-xs font-bold tracking-[0.2em] text-[#6e776f]">
@@ -222,18 +222,18 @@ export default function SimulatorPage() {
 										<button
 											onClick={() => void setDeviceStatus(device)}
 											disabled={
-										!device.capabilities.canToggle ||
-										device.health !== "CONNECTED" ||
+												!device.capabilities.canToggle ||
+												device.health !== "CONNECTED" ||
 												device.status === "ERROR" ||
 												device.status === "DISCONNECTED"
 											}
 											className="rounded-xl bg-[#2d6a4f] px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:bg-[#b7c0b8]"
 										>
-										{!device.capabilities.canToggle
-											? "Monitoring only"
-											: device.health === "CONNECTED"
-											? "Toggle power"
-												: "Control unavailable"}
+											{!device.capabilities.canToggle
+												? "Monitoring only"
+												: device.health === "CONNECTED"
+													? "Toggle power"
+													: "Control unavailable"}
 										</button>
 									</div>
 								</div>
