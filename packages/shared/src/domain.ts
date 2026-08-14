@@ -46,6 +46,8 @@ export interface UsageRecord {
   startTime: string;
   endTime?: string;
   durationSeconds?: number;
+  powerWatts?: number;
+  estimatedEnergyKwh?: number;
   cutoffReason?: string;
 }
 

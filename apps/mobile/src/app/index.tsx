@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Redirect } from "expo-router";
 import { StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Box } from "@/components/ui/box";
@@ -7,7 +8,7 @@ import { Pressable } from "@/components/ui/pressable";
 import { ScrollView } from "@/components/ui/scroll-view";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Button, ButtonText } from "@/components/ui/button";
-import { canToggleDevice, DEMO_HOUSEHOLD_ID, demoDevices, demoFloors, demoHousehold, devicePath, nextToggleStatus } from "@smart-home/shared";
+import { canToggleDevice, DEMO_HOUSEHOLD_ID, demoDevices, demoFloors, demoHousehold, devicePath, formatRuntime, getLiveRuntime, nextToggleStatus, type Device, type UsageRecord } from "@smart-home/shared";
 import { doc, updateDoc } from "firebase/firestore";
 import { useDemoAlerts, useDemoDevices, useDemoSwitches, useDemoUsage } from "@/lib/demo-data";
 import { firestore } from "@/lib/firebase";
@@ -17,14 +18,21 @@ import { DismissibleAlert } from "@/components/dismissible-alert";
 import { statusColors, toneForAlert } from "@/constants/status";
 import { deviceTone, DeviceStateBadge } from "@/components/device-state";
 import Toast from "react-native-toast-message";
+import { useDemoProfile } from "@/lib/demo-profile";
 
 const colors = { background: "#EEF2EE", ink: "#132019", muted: "#68766C", card: "#FFFFFF", line: "#D8E2D9", accent: "#176B4D", warning: "#A85A16" };
 
 export default function HomeScreen() {
+  const profile = useDemoProfile();
   const live = useDemoDevices();
   const { alerts, dismissAlert } = useDemoAlerts();
   const usage = useDemoUsage();
   const [pendingDevice, setPendingDevice] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1_000);
+    return () => clearInterval(timer);
+  }, []);
   const devices = live.ready ? live.devices : demoDevices;
   const activeDevices = useMemo(() => devices.filter((device) => device.status === "ON"), [devices]);
   const attentionCount = devices.filter((device) => device.health !== "CONNECTED").length;
@@ -41,11 +49,14 @@ export default function HomeScreen() {
     finally { setPendingDevice(null); }
   }
 
+  if (!profile.ready) return <SafeAreaView style={styles.safeArea} />;
+  if (!profile.name) return <Redirect href="/welcome" />;
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.content}>
         <Box style={styles.header}>
-          <Box><Text style={styles.eyebrow}>SMART HOME</Text><Text style={styles.title}>{demoHousehold.name}</Text></Box>
+          <Box><Text style={styles.eyebrow}>SMART HOME · {profile.name.toUpperCase()}</Text><Text style={styles.title}>{demoHousehold.name}</Text></Box>
           <Box style={styles.statusPill}><Box style={styles.statusDot} /><Text style={styles.statusText}>Connected</Text></Box>
         </Box>
         {live.error && <FeedbackBanner tone="danger" title="Sync unavailable" message={`${live.error} Check the emulator host and Wi-Fi connection.`} />}
@@ -62,7 +73,7 @@ export default function HomeScreen() {
           return <Pressable key={floor.id} style={styles.floorCard} accessibilityRole="button">
             <Box style={styles.floorTopline}><Text style={styles.floorName}>{floor.name}</Text><Text style={styles.chevron}>›</Text></Box>
             <Text style={styles.floorMeta}>{floorDevices.length} device{floorDevices.length === 1 ? "" : "s"} · {floor.gridColumns} × {floor.gridRows} grid</Text>
-            <Box style={styles.deviceStack}>{floorDevices.map((device) => { const unavailable = !canToggleDevice(device.status, device.health); const tone = deviceTone(device.status, device.health); const palette = statusColors[tone]; return <Button key={device.id} isDisabled={unavailable || pendingDevice !== null} onPress={() => void toggleDevice(device.id, device.status === "ON" ? "ON" : "OFF")} style={[styles.deviceAction, { backgroundColor: palette.surface, borderColor: palette.border }]} accessibilityLabel={`${device.name}: ${device.status}, ${device.health}.`}><Box style={styles.deviceActionCopy}><ButtonText style={styles.deviceName} numberOfLines={1}>{device.name}</ButtonText><Text style={[styles.deviceHint, { color: palette.text }]}>{pendingDevice === device.id ? "Saving change…" : unavailable ? `${device.health === "ERROR" ? "Error detected" : "Offline"} · control unavailable` : "Tap to toggle power"}</Text></Box>{pendingDevice === device.id ? <Text style={[styles.deviceState, { color: palette.strong }]}>SAVING</Text> : <DeviceStateBadge status={device.status} health={device.health} />}</Button>; })}</Box>
+            <Box style={styles.deviceStack}>{floorDevices.map((device) => { const unavailable = !canToggleDevice(device.status, device.health); const tone = deviceTone(device.status, device.health); const palette = statusColors[tone]; return <Button key={device.id} isDisabled={unavailable || pendingDevice !== null} onPress={() => void toggleDevice(device.id, device.status === "ON" ? "ON" : "OFF")} style={[styles.deviceAction, { backgroundColor: palette.surface, borderColor: palette.border }]} accessibilityLabel={`${device.name}: ${device.status}, ${device.health}.`}><Box style={styles.deviceActionCopy}><ButtonText style={styles.deviceName} numberOfLines={1}>{device.name}</ButtonText><Text style={[styles.deviceHint, { color: palette.text }]}>{pendingDevice === device.id ? "Saving change…" : unavailable ? `${device.health === "ERROR" ? "Error detected" : "Offline"} · control unavailable` : runtimeSummary(device, usage, now)}</Text></Box>{pendingDevice === device.id ? <Text style={[styles.deviceState, { color: palette.strong }]}>SAVING</Text> : <DeviceStateBadge status={device.status} health={device.health} />}</Button>; })}</Box>
             {floorDevices.filter((device) => device.type === "switch-unit").map((device) => <Switches key={`${device.id}-switches`} deviceId={device.id} />)}
           </Pressable>;
         })}
@@ -74,6 +85,23 @@ export default function HomeScreen() {
       <AppNav />
     </SafeAreaView>
   );
+}
+
+function runtimeSummary(device: Device, usage: UsageRecord[], now: number) {
+  const runtime = getLiveRuntime(device, now);
+  if (runtime.isRunning) {
+    if (device.type === "iron" && runtime.remainingSafetySeconds !== null) {
+      return runtime.safetyCutoffDue
+        ? "Safety cutoff pending"
+        : `Auto-off in ${formatRuntime(runtime.remainingSafetySeconds)} · ${runtime.estimatedEnergyKwh.toFixed(4)} kWh`;
+    }
+    const label = device.type === "camera" ? "Online" : "Running";
+    return `${label} ${formatRuntime(runtime.elapsedSeconds)} · ${device.powerWatts}W · ${runtime.estimatedEnergyKwh.toFixed(4)} kWh`;
+  }
+  const lastSession = usage.find((item) => item.deviceId === device.id);
+  return lastSession
+    ? `Last active ${formatRuntime(lastSession.durationSeconds ?? 0)} · ${(lastSession.estimatedEnergyKwh ?? 0).toFixed(4)} kWh`
+    : "Tap to toggle power";
 }
 
 const styles = StyleSheet.create({
