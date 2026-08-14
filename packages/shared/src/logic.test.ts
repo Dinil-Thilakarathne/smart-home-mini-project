@@ -3,6 +3,7 @@ import test from "node:test";
 import { isSafetyCutoffDue, isScheduleActive } from "./automation.ts";
 import { canToggleDevice, nextToggleStatus, shouldTrackUsage } from "./controls.ts";
 import { canPlace, fitsGrid, positionsOverlap } from "./layout.ts";
+import { formatRuntime, getLiveRuntime } from "./runtime.ts";
 
 test("layout validation accepts in-bounds non-overlapping rectangles", () => {
   assert.equal(fitsGrid({ column: 1, row: 1, width: 2, height: 2 }, 6, 4), true);
@@ -39,4 +40,17 @@ test("usage tracking ignores safety and non-power transitions", () => {
   assert.equal(shouldTrackUsage("ON", "OFF", "SIMULATOR"), true);
   assert.equal(shouldTrackUsage("ON", "OFF", "SAFETY"), false);
   assert.equal(shouldTrackUsage("ON", "ERROR", "USER"), false);
+});
+
+test("live runtime calculates energy and the iron safety countdown without a write", () => {
+  const runtime = getLiveRuntime({
+    status: "ON", health: "CONNECTED", type: "iron", powerWatts: 1_200,
+    capabilities: { canToggle: true, safetyMaxDurationMinutes: 15 },
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  }, new Date("2026-01-01T00:10:00.000Z"));
+  assert.equal(runtime.elapsedSeconds, 600);
+  assert.equal(runtime.estimatedEnergyKwh, 0.2);
+  assert.equal(runtime.remainingSafetySeconds, 300);
+  assert.equal(runtime.safetyCutoffDue, false);
+  assert.equal(formatRuntime(runtime.elapsedSeconds), "10m 00s");
 });

@@ -8,6 +8,13 @@ import { isSafetyCutoffDue, isScheduleActive } from "./automation.js";
 const adminApp = getApps().length ? getApps()[0] : initializeApp();
 const db = getFirestore(adminApp);
 
+function usageEnergy(powerWatts: unknown, start: unknown, end: Date) {
+  const startedAt = (start as { toDate?: () => Date } | undefined)?.toDate?.() ?? new Date(start as string | number);
+  const durationSeconds = Math.max(0, Math.round((end.getTime() - startedAt.getTime()) / 1000));
+  const watts = typeof powerWatts === "number" && powerWatts >= 0 ? powerWatts : 0;
+  return { durationSeconds, powerWatts: watts, estimatedEnergyKwh: Number(((watts * durationSeconds) / 3_600_000).toFixed(4)) };
+}
+
 const DEMO_HOUSEHOLD_ID = "demo-household";
 const demoHousehold = { id: DEMO_HOUSEHOLD_ID, name: "Colombo Demo Home", timezone: "Asia/Colombo", demo: true };
 const demoFloors = [
@@ -15,12 +22,19 @@ const demoFloors = [
   { id: "upper-floor", name: "Upper floor", order: 1, gridColumns: 6, gridRows: 4 },
 ];
 const demoDevices = [
-  { id: "kitchen-outlet", name: "Kitchen outlet", type: "outlet", status: "OFF", health: "CONNECTED", floorId: "ground-floor", position: { column: 1, row: 1, width: 2, height: 2 }, capabilities: { canToggle: true }, lastChangedSource: "USER", updatedAt: "2026-01-01T00:00:00.000Z" },
-  { id: "living-room-light", name: "Living room light", type: "light", status: "OFF", health: "CONNECTED", floorId: "ground-floor", position: { column: 3, row: 3, width: 2, height: 2 }, capabilities: { canToggle: true, supportsSchedule: true }, lastChangedSource: "USER", updatedAt: "2026-01-01T00:00:00.000Z" },
-  { id: "kitchen-iron", name: "Kitchen iron", type: "iron", status: "ON", health: "CONNECTED", floorId: "ground-floor", position: { column: 5, row: 1, width: 2, height: 2 }, capabilities: { canToggle: true, safetyMaxDurationMinutes: 30 }, lastChangedSource: "SIMULATOR", updatedAt: "2026-01-01T00:00:00.000Z" },
-  { id: "front-door-camera", name: "Front door camera", type: "camera", status: "ON", health: "CONNECTED", floorId: "ground-floor", position: { column: 3, row: 1, width: 1, height: 1 }, capabilities: { canToggle: false }, lastChangedSource: "SIMULATOR", updatedAt: "2026-01-01T00:00:00.000Z" },
-  { id: "bedroom-switch-unit", name: "Bedroom switches", type: "switch-unit", status: "OFF", health: "CONNECTED", floorId: "upper-floor", position: { column: 3, row: 2, width: 2, height: 2 }, capabilities: { canToggle: true }, lastChangedSource: "USER", updatedAt: "2026-01-01T00:00:00.000Z" },
-  { id: "garden-camera", name: "Garden camera", type: "camera", status: "ON", health: "CONNECTED", floorId: "upper-floor", position: { column: 5, row: 1, width: 1, height: 1 }, capabilities: { canToggle: false }, lastChangedSource: "SIMULATOR", updatedAt: "2026-01-01T00:00:00.000Z" },
+  { id: "kitchen-outlet", name: "Kitchen outlet", type: "outlet", status: "OFF", health: "CONNECTED", floorId: "ground-floor", position: { column: 1, row: 1, width: 2, height: 2 }, capabilities: { canToggle: true }, powerWatts: 100, lastChangedSource: "USER", updatedAt: "2026-01-01T00:00:00.000Z" },
+  { id: "living-room-light", name: "Living room light", type: "light", status: "OFF", health: "CONNECTED", floorId: "ground-floor", position: { column: 3, row: 3, width: 2, height: 2 }, capabilities: { canToggle: true, supportsSchedule: true }, powerWatts: 10, lastChangedSource: "USER", updatedAt: "2026-01-01T00:00:00.000Z" },
+  { id: "kitchen-iron", name: "Kitchen iron", type: "iron", status: "ON", health: "CONNECTED", floorId: "ground-floor", position: { column: 5, row: 1, width: 2, height: 2 }, capabilities: { canToggle: true, safetyMaxDurationMinutes: 30 }, powerWatts: 1200, lastChangedSource: "SIMULATOR", updatedAt: "2026-01-01T00:00:00.000Z" },
+  { id: "front-door-camera", name: "Front door camera", type: "camera", status: "ON", health: "CONNECTED", floorId: "ground-floor", position: { column: 3, row: 1, width: 1, height: 1 }, capabilities: { canToggle: false }, powerWatts: 8, lastChangedSource: "SIMULATOR", updatedAt: "2026-01-01T00:00:00.000Z" },
+  { id: "hallway-light", name: "Hallway light", type: "light", status: "ON", health: "CONNECTED", floorId: "ground-floor", position: { column: 4, row: 1, width: 1, height: 1 }, capabilities: { canToggle: true, supportsSchedule: true }, powerWatts: 9, lastChangedSource: "SCHEDULE", updatedAt: "2026-01-01T00:00:00.000Z" },
+  { id: "dining-outlet", name: "Dining outlet", type: "outlet", status: "OFF", health: "CONNECTED", floorId: "ground-floor", position: { column: 1, row: 3, width: 2, height: 2 }, capabilities: { canToggle: true }, powerWatts: 150, lastChangedSource: "USER", updatedAt: "2026-01-01T00:00:00.000Z" },
+  { id: "garage-camera", name: "Garage camera", type: "camera", status: "ON", health: "CONNECTED", floorId: "ground-floor", position: { column: 4, row: 2, width: 1, height: 1 }, capabilities: { canToggle: false }, powerWatts: 8, lastChangedSource: "SIMULATOR", updatedAt: "2026-01-01T00:00:00.000Z" },
+  { id: "bedroom-switch-unit", name: "Bedroom switches", type: "switch-unit", status: "OFF", health: "CONNECTED", floorId: "upper-floor", position: { column: 3, row: 2, width: 2, height: 2 }, capabilities: { canToggle: true }, powerWatts: 60, lastChangedSource: "USER", updatedAt: "2026-01-01T00:00:00.000Z" },
+  { id: "garden-camera", name: "Garden camera", type: "camera", status: "ON", health: "CONNECTED", floorId: "upper-floor", position: { column: 5, row: 1, width: 1, height: 1 }, capabilities: { canToggle: false }, powerWatts: 8, lastChangedSource: "SIMULATOR", updatedAt: "2026-01-01T00:00:00.000Z" },
+  { id: "bedroom-lamp", name: "Bedroom lamp", type: "light", status: "OFF", health: "CONNECTED", floorId: "upper-floor", position: { column: 1, row: 1, width: 2, height: 1 }, capabilities: { canToggle: true, supportsSchedule: true }, powerWatts: 8, lastChangedSource: "USER", updatedAt: "2026-01-01T00:00:00.000Z" },
+  { id: "study-light", name: "Study light", type: "light", status: "ON", health: "CONNECTED", floorId: "upper-floor", position: { column: 5, row: 2, width: 1, height: 1 }, capabilities: { canToggle: true, supportsSchedule: true }, powerWatts: 10, lastChangedSource: "USER", updatedAt: "2026-01-01T00:00:00.000Z" },
+  { id: "bathroom-outlet", name: "Bathroom outlet", type: "outlet", status: "OFF", health: "CONNECTED", floorId: "upper-floor", position: { column: 5, row: 3, width: 1, height: 1 }, capabilities: { canToggle: true }, powerWatts: 80, lastChangedSource: "USER", updatedAt: "2026-01-01T00:00:00.000Z" },
+  { id: "balcony-camera", name: "Balcony camera", type: "camera", status: "ON", health: "CONNECTED", floorId: "upper-floor", position: { column: 6, row: 1, width: 1, height: 1 }, capabilities: { canToggle: false }, powerWatts: 8, lastChangedSource: "SIMULATOR", updatedAt: "2026-01-01T00:00:00.000Z" },
 ];
 const demoSchedules = [{ id: "living-room-evening-light", householdId: DEMO_HOUSEHOLD_ID, deviceId: "living-room-light", days: [1, 2, 3, 4, 5, 6, 0], startTime: "18:00", endTime: "23:00", enabled: true, timezone: "Asia/Colombo" }];
 const demoSwitches = [
@@ -37,13 +51,14 @@ export const health = onRequest((_request, response) => {
 
 export const seedDemo = onRequest(async (_request, response) => {
   const batch = db.batch();
+  const seededAt = Timestamp.now();
   const householdRef = db.doc(`households/${DEMO_HOUSEHOLD_ID}`);
   batch.set(householdRef, demoHousehold);
   for (const floor of demoFloors) batch.set(db.doc(`${householdRef.path}/floors/${floor.id}`), floor);
   for (const device of demoDevices) {
     batch.set(db.doc(`${householdRef.path}/devices/${device.id}`), {
       ...device,
-      updatedAt: Timestamp.fromDate(new Date(device.updatedAt)),
+      updatedAt: seededAt,
     });
   }
   for (const item of demoSwitches) batch.set(db.doc(`${householdRef.path}/devices/${item.deviceId}/switches/${item.id}`), item);
@@ -63,7 +78,7 @@ export const safetyCutoff = onRequest(async (request, response) => {
   const alertRef = db.collection(`households/${DEMO_HOUSEHOLD_ID}/alerts`).doc(`safety-${deviceId}-${now.getTime()}`);
   batch.set(alertRef, { id: alertRef.id, householdId: DEMO_HOUSEHOLD_ID, severity: "CRITICAL", message: `${device.name} was turned off by safety monitoring.`, source: "SAFETY", deviceId, read: false, createdAt: Timestamp.fromDate(now) });
   const usageRef = db.collection(`households/${DEMO_HOUSEHOLD_ID}/usage`).doc(`cutoff-${deviceId}-${now.getTime()}`);
-  batch.set(usageRef, { id: usageRef.id, householdId: DEMO_HOUSEHOLD_ID, deviceId, deviceType: device.type, eventType: "SAFETY_CUTOFF", source: "SAFETY", startTime: device.updatedAt, endTime: Timestamp.fromDate(now), cutoffReason: "Maximum active duration exceeded" });
+  batch.set(usageRef, { id: usageRef.id, householdId: DEMO_HOUSEHOLD_ID, deviceId, deviceType: device.type, eventType: "SAFETY_CUTOFF", source: "SAFETY", startTime: device.updatedAt, endTime: Timestamp.fromDate(now), cutoffReason: "Maximum active duration exceeded", ...usageEnergy(device.powerWatts, device.updatedAt, now) });
   await batch.commit();
   response.json({ deviceId, cutoff: true, alertId: alertRef.id, usageId: usageRef.id });
 });
@@ -81,7 +96,7 @@ async function runAutomationEvaluation(now = new Date()) {
       const alertRef = db.collection(`households/${DEMO_HOUSEHOLD_ID}/alerts`).doc(`auto-safety-${item.id}-${updatedAt.getTime()}`);
       batch.set(alertRef, { id: alertRef.id, householdId: DEMO_HOUSEHOLD_ID, severity: "CRITICAL", message: `${device.name} was turned off by safety monitoring.`, source: "SAFETY", deviceId: item.id, read: false, createdAt: Timestamp.fromDate(now) }, { merge: true });
       const usageRef = db.collection(`households/${DEMO_HOUSEHOLD_ID}/usage`).doc(`auto-cutoff-${item.id}-${updatedAt.getTime()}`);
-      batch.set(usageRef, { id: usageRef.id, householdId: DEMO_HOUSEHOLD_ID, deviceId: item.id, deviceType: device.type, eventType: "SAFETY_CUTOFF", source: "SAFETY", startTime: device.updatedAt, endTime: Timestamp.fromDate(now), cutoffReason: "Maximum active duration exceeded" }, { merge: true });
+      batch.set(usageRef, { id: usageRef.id, householdId: DEMO_HOUSEHOLD_ID, deviceId: item.id, deviceType: device.type, eventType: "SAFETY_CUTOFF", source: "SAFETY", startTime: device.updatedAt, endTime: Timestamp.fromDate(now), cutoffReason: "Maximum active duration exceeded", ...usageEnergy(device.powerWatts, device.updatedAt, now) }, { merge: true });
       writes += 3;
     }
   }
@@ -123,6 +138,11 @@ export const runAutomation = onRequest(async (_request, response) => {
 function describeDeviceChanges(before: Record<string, unknown>, after: Record<string, unknown>) {
   const changes: string[] = [];
   if (before.status !== after.status) changes.push(`Power changed from ${before.status} to ${after.status}.`);
+  if (before.status === "ON" && after.status === "OFF") {
+    const endedAt = (after.updatedAt as { toDate?: () => Date } | undefined)?.toDate?.() ?? new Date(after.updatedAt as string | number);
+    const energy = usageEnergy(after.powerWatts, before.updatedAt, endedAt);
+    changes.push(`Estimated session energy: ${energy.estimatedEnergyKwh.toFixed(4)} kWh at ${energy.powerWatts}W for ${Math.round(energy.durationSeconds / 60)} min.`);
+  }
   if (before.health !== after.health) changes.push(`Connection changed from ${before.health} to ${after.health}.`);
   if (JSON.stringify(before.position) !== JSON.stringify(after.position)) changes.push("Floor-plan position or size was updated.");
   if (JSON.stringify(before.capabilities) !== JSON.stringify(after.capabilities)) changes.push("Device configuration was updated.");
@@ -199,5 +219,5 @@ export const trackDeviceUsage = onDocumentUpdated("households/{householdId}/devi
   if (!session) return;
   const data = session.data();
   const start = data.startTime?.toDate?.() ?? new Date(data.startTime);
-  await session.ref.update({ endTime: Timestamp.fromDate(changedAt), durationSeconds: Math.max(0, Math.round((changedAt.getTime() - start.getTime()) / 1000)) });
+  await session.ref.update({ endTime: Timestamp.fromDate(changedAt), ...usageEnergy(after.powerWatts, start, changedAt) });
 });

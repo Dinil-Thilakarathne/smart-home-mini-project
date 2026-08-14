@@ -52,6 +52,7 @@ export interface Device {
   floorId: string;
   position: DevicePosition;
   capabilities: DeviceCapabilities;
+  powerWatts: number;
   lastChangedSource: DeviceSource;
   updatedAt: string;
 }

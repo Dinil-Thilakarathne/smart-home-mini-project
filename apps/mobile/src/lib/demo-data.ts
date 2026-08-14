@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { signInAnonymously } from "firebase/auth";
 import { collection, onSnapshot, orderBy, query, limit, updateDoc, doc } from "firebase/firestore";
-import type { Device, DeviceLog, Schedule } from "@smart-home/shared";
+import type { Device, DeviceLog, Schedule, UsageRecord } from "@smart-home/shared";
 import { DEMO_HOUSEHOLD_ID, deviceCollectionPath, deviceLogCollectionPath, scheduleCollectionPath, switchCollectionPath } from "@smart-home/shared";
 import { firebaseAuth, firestore } from "./firebase";
 
@@ -59,11 +59,11 @@ export function useDemoSwitches(deviceId: string) {
 }
 
 export function useDemoUsage() {
-  const [usage, setUsage] = useState<{ id: string; deviceId: string; eventType: string; cutoffReason?: string; time: string }[]>([]);
+  const [usage, setUsage] = useState<(UsageRecord & { time: string })[]>([]);
   useEffect(() => {
     let unsubscribe = () => {};
     signInAnonymously(firebaseAuth).then(() => {
-      unsubscribe = onSnapshot(query(collection(firestore, `households/${DEMO_HOUSEHOLD_ID}/usage`), orderBy("endTime", "desc"), limit(8)), (snapshot) => setUsage(snapshot.docs.map((item) => ({ id: item.id, deviceId: String(item.data().deviceId), eventType: String(item.data().eventType), cutoffReason: item.data().cutoffReason ? String(item.data().cutoffReason) : undefined, time: formatTimestamp(item.data().endTime ?? item.data().startTime) }))));
+      unsubscribe = onSnapshot(query(collection(firestore, `households/${DEMO_HOUSEHOLD_ID}/usage`), orderBy("endTime", "desc"), limit(50)), (snapshot) => setUsage(snapshot.docs.map((item) => ({ id: item.id, ...item.data(), estimatedEnergyKwh: Number(item.data().estimatedEnergyKwh ?? 0), powerWatts: Number(item.data().powerWatts ?? 0), durationSeconds: Number(item.data().durationSeconds ?? 0), time: formatTimestamp(item.data().endTime ?? item.data().startTime) }) as UsageRecord & { time: string })));
     });
     return () => unsubscribe();
   }, []);
