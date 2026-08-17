@@ -116,10 +116,23 @@ export const demoSchedules: Schedule[] = [
   },
 ];
 
-export const demoSwitches: Switch[] = [
-  { id: "bedroom-switch-1", deviceId: "bedroom-switch-unit", name: "Ceiling light", index: 0, status: "OFF", updatedAt: "2026-01-01T00:00:00.000Z" },
-  { id: "bedroom-switch-2", deviceId: "bedroom-switch-unit", name: "Bedside lamp", index: 1, status: "OFF", updatedAt: "2026-01-01T00:00:00.000Z" },
-  { id: "bedroom-switch-3", deviceId: "bedroom-switch-unit", name: "Desk lamp", index: 2, status: "OFF", updatedAt: "2026-01-01T00:00:00.000Z" },
-  { id: "bedroom-switch-4", deviceId: "bedroom-switch-unit", name: "Fan", index: 3, status: "OFF", updatedAt: "2026-01-01T00:00:00.000Z" },
-  { id: "bedroom-switch-5", deviceId: "bedroom-switch-unit", name: "Accent light", index: 4, status: "OFF", updatedAt: "2026-01-01T00:00:00.000Z" },
-];
+const switchNames = ["Ceiling light", "Bedside lamp", "Desk lamp", "Fan", "Accent light"];
+
+export function createSwitchUnitFixture(deviceId: string, count: 2 | 3 | 5): Switch[] {
+  return switchNames.slice(0, count).map((name, index) => ({
+    id: `${deviceId}-${index + 1}`,
+    deviceId,
+    name,
+    index,
+    status: "OFF" as const,
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  }));
+}
+
+export const demoSwitchUnitFixtures = {
+  two: createSwitchUnitFixture("two-switch-unit", 2),
+  three: createSwitchUnitFixture("three-switch-unit", 3),
+  five: createSwitchUnitFixture("bedroom-switch-unit", 5),
+};
+
+export const demoSwitches: Switch[] = demoSwitchUnitFixtures.five;

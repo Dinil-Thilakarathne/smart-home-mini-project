@@ -276,7 +276,7 @@ The current implementation is a working V1 prototype. The following work must be
 
 1. Add at least one seeded outlet device to the demo household.
 2. Confirm the outlet uses the same single-node control contract as lights.
-3. Expand the switch-unit seed data and UI test fixture to cover two, three, and five switches, while keeping one manageable demo unit in the main presentation.
+3. Expand the switch-unit seed data and UI test fixture to cover two, three, and five switches, while keeping one manageable demo unit in the main presentation. Completed in the shared fixture layer; the main seeded presentation remains a five-switch unit.
 4. Add normal usage-session tracking for important devices:
    - Open a session on a valid `ON` transition.
    - Close it on the next valid `OFF` transition.
@@ -300,7 +300,7 @@ Exit criteria: the seeded household demonstrates an outlet, light, iron, multi-s
    - Disconnected-device control rejection.
    - Iron cutoff idempotency.
    - Usage-session open and close behavior.
-   - Schedule start and end behavior.
+   - Schedule start and end behavior for multiple user-defined automations.
 2. Run static and production checks:
 
 ```bash

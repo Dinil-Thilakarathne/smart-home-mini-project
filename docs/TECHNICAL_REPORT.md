@@ -36,7 +36,7 @@ Firestore is the real-time source of truth. The mobile app and simulator both su
 | `households/{id}/floors` | Floor definitions | `name`, `order`, `gridColumns`, `gridRows` |
 | `households/{id}/devices` | Device state, health, position, capabilities | `type`, `status`, `health`, `position`, `capabilities`, `lastChangedSource` |
 | `devices/{id}/switches` | Individual gang-box switches | `name`, `index`, `status`, `updatedAt` |
-| `households/{id}/schedules` | Light automation | `deviceId`, `days`, `startTime`, `endTime`, `timezone`, `enabled` |
+| `households/{id}/schedules` | User-defined scheduled automations | `name`, `deviceId`, optional `switchId`, `days`, `startTime`, `endTime`, `action`, `timezone`, `enabled` |
 | `households/{id}/alerts` | Persistent notifications | `severity`, `message`, `source`, `read`, `createdAt` |
 | `households/{id}/usage` | Device usage reporting | `eventType`, `startTime`, `endTime`, `cutoffReason` |
 | `households/{id}/logs` | Device audit trail | `deviceId`, `source`, `changes`, `createdAt` |
@@ -72,7 +72,7 @@ The floor-plan editor allows the user to adjust a device position and size. Vali
 - **Electrical outlet:** A single-node ON or OFF power device.
 - **Light:** ON or OFF control with a configurable time-range schedule.
 - **Iron:** ON or OFF control with a maximum safe active duration.
-- **Multi-switch unit:** One gang-box device with five individually addressable switches.
+- **Multi-switch unit:** One gang-box device with five individually addressable switches in the main demo. The shared fixture layer also covers two- and three-switch units using the same child-switch contract.
 - **Security cameras:** Front door and Garden monitoring cards using static or bundled mock snapshots.
 
 The hardware simulator can change a device state and health to Connected, Error, or Disconnected. It also controls every switch independently and reflects all mobile-originated updates.
@@ -89,9 +89,9 @@ The Kitchen iron has a configurable maximum active duration. If the iron remains
 4. Creates a `SAFETY_CUTOFF` usage record.
 5. Adds a device audit log entry.
 
-### Light schedule
+### Scheduled automations
 
-The Living room light uses a start and end time in the `Asia/Colombo` timezone. The native time picker in the mobile app saves valid `HH:mm` values. When the schedule state changes, the backend:
+The mobile app supports multiple scheduled automations. Each automation targets a device or individual switch, chooses an ON or OFF action, and uses a start and end time in the `Asia/Colombo` timezone. When the schedule state changes, the backend:
 
 1. Changes the light state with source `SCHEDULE`.
 2. Creates an Info alert.

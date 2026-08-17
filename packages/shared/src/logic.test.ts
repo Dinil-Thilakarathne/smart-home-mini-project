@@ -4,6 +4,16 @@ import { isSafetyCutoffDue, isScheduleActive } from "./automation.ts";
 import { canToggleDevice, nextToggleStatus, shouldTrackUsage } from "./controls.ts";
 import { canPlace, fitsGrid, positionsOverlap } from "./layout.ts";
 import { formatRuntime, getLiveRuntime } from "./runtime.ts";
+import { createSwitchUnitFixture, demoSwitchUnitFixtures } from "./seed.ts";
+
+test("multi-switch fixtures support 2, 3, and 5 independently addressable switches", () => {
+  assert.deepEqual(Object.values(demoSwitchUnitFixtures).map((fixture) => fixture.length), [2, 3, 5]);
+  const switches = createSwitchUnitFixture("test-unit", 3);
+  const updated = switches.map((item) => item.id === switches[1].id ? { ...item, status: "ON" as const } : item);
+  assert.equal(updated[1].status, "ON");
+  assert.equal(updated[0].status, "OFF");
+  assert.equal(updated[2].status, "OFF");
+});
 
 test("layout validation accepts in-bounds non-overlapping rectangles", () => {
   assert.equal(fitsGrid({ column: 1, row: 1, width: 2, height: 2 }, 6, 4), true);

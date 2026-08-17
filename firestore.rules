@@ -48,13 +48,23 @@ service cloud.firestore {
       allow read: if isDemoHousehold(householdId);
       allow update: if isDemoHousehold(householdId)
         && request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['startTime', 'endTime', 'days', 'enabled', 'timezone'])
+          .hasOnly(['name', 'startTime', 'endTime', 'days', 'action', 'enabled', 'timezone', 'deviceId', 'switchId'])
         && request.resource.data.startTime is string
         && request.resource.data.endTime is string
         && request.resource.data.days is list
         && request.resource.data.enabled is bool
+        && request.resource.data.timezone == 'Asia/Colombo'
+        && request.resource.data.action in ['ON', 'OFF'];
+      allow create: if isDemoHousehold(householdId)
+        && request.resource.data.householdId == householdId
+        && request.resource.data.deviceId is string
+        && request.resource.data.startTime is string
+        && request.resource.data.endTime is string
+        && request.resource.data.days is list
+        && request.resource.data.action in ['ON', 'OFF']
+        && request.resource.data.enabled is bool
         && request.resource.data.timezone == 'Asia/Colombo';
-      allow create, delete: if false;
+      allow delete: if isDemoHousehold(householdId);
     }
 
     match /households/{householdId}/alerts/{alertId} {

@@ -15,9 +15,11 @@ export interface Household {
 
 export interface Schedule {
   id: string;
+  name?: string;
   householdId: string;
   deviceId: string;
   switchId?: string;
+  action?: Extract<DeviceStatus, "ON" | "OFF">;
   days: number[];
   startTime: string;
   endTime: string;

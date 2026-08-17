@@ -4,6 +4,7 @@ import { onDocumentUpdated } from "firebase-functions/v2/firestore";
 import { getApps, initializeApp } from "firebase-admin/app";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { isSafetyCutoffDue, isScheduleActive } from "./automation.js";
+import { demoSwitches } from "@smart-home/shared";
 
 const adminApp = getApps().length ? getApps()[0] : initializeApp();
 const db = getFirestore(adminApp);
@@ -36,15 +37,7 @@ const demoDevices = [
   { id: "bathroom-outlet", name: "Bathroom outlet", type: "outlet", status: "OFF", health: "CONNECTED", floorId: "upper-floor", position: { column: 5, row: 3, width: 1, height: 1 }, capabilities: { canToggle: true }, powerWatts: 80, lastChangedSource: "USER", updatedAt: "2026-01-01T00:00:00.000Z" },
   { id: "balcony-camera", name: "Balcony camera", type: "camera", status: "ON", health: "CONNECTED", floorId: "upper-floor", position: { column: 6, row: 1, width: 1, height: 1 }, capabilities: { canToggle: false }, powerWatts: 8, lastChangedSource: "SIMULATOR", updatedAt: "2026-01-01T00:00:00.000Z" },
 ];
-const demoSchedules = [{ id: "living-room-evening-light", householdId: DEMO_HOUSEHOLD_ID, deviceId: "living-room-light", days: [1, 2, 3, 4, 5, 6, 0], startTime: "18:00", endTime: "23:00", enabled: true, timezone: "Asia/Colombo" }];
-const demoSwitches = [
-  { id: "bedroom-switch-1", deviceId: "bedroom-switch-unit", name: "Ceiling light", index: 0, status: "OFF", updatedAt: "2026-01-01T00:00:00.000Z" },
-  { id: "bedroom-switch-2", deviceId: "bedroom-switch-unit", name: "Bedside lamp", index: 1, status: "OFF", updatedAt: "2026-01-01T00:00:00.000Z" },
-  { id: "bedroom-switch-3", deviceId: "bedroom-switch-unit", name: "Desk lamp", index: 2, status: "OFF", updatedAt: "2026-01-01T00:00:00.000Z" },
-  { id: "bedroom-switch-4", deviceId: "bedroom-switch-unit", name: "Fan", index: 3, status: "OFF", updatedAt: "2026-01-01T00:00:00.000Z" },
-  { id: "bedroom-switch-5", deviceId: "bedroom-switch-unit", name: "Accent light", index: 4, status: "OFF", updatedAt: "2026-01-01T00:00:00.000Z" },
-];
-
+const demoSchedules = [{ id: "living-room-evening-light", name: "Living room evening", householdId: DEMO_HOUSEHOLD_ID, deviceId: "living-room-light", days: [1, 2, 3, 4, 5, 6, 0], startTime: "18:00", endTime: "23:00", action: "ON", enabled: true, timezone: "Asia/Colombo" }];
 export const health = onRequest((_request, response) => {
   response.json({ service: "smart-home-functions", status: "ok" });
 });
@@ -106,16 +99,21 @@ async function runAutomationEvaluation(now = new Date()) {
   const scheduleBatch = db.batch();
   let scheduleWrites = 0;
   for (const scheduleDoc of schedules.docs) {
-    const schedule = scheduleDoc.data() as { deviceId: string; days: number[]; startTime: string; endTime: string; timezone: string };
+    const schedule = scheduleDoc.data() as { deviceId: string; switchId?: string; days: number[]; startTime: string; endTime: string; action?: "ON" | "OFF"; timezone: string };
     const deviceRef = db.doc(`households/${DEMO_HOUSEHOLD_ID}/devices/${schedule.deviceId}`);
     const deviceSnapshot = await deviceRef.get();
     const device = deviceSnapshot.data();
     if (!device || device.health !== "CONNECTED") continue;
-    const desiredStatus = isScheduleActive(schedule, now) ? "ON" : "OFF";
-    if (device.status !== desiredStatus && device.lastChangedSource !== "SAFETY") {
-      scheduleBatch.update(deviceRef, { status: desiredStatus, lastChangedSource: "SCHEDULE", updatedAt: Timestamp.fromDate(now) });
+    const targetRef = schedule.switchId ? db.doc(`${deviceRef.path}/switches/${schedule.switchId}`) : deviceRef;
+    const targetSnapshot = schedule.switchId ? await targetRef.get() : deviceSnapshot;
+    const target = targetSnapshot.data();
+    if (!target) continue;
+    const active = isScheduleActive(schedule, now);
+    const desiredStatus = schedule.action ? (active ? schedule.action : schedule.action === "ON" ? "OFF" : "ON") : active ? "ON" : "OFF";
+    if (target.status !== desiredStatus && device.lastChangedSource !== "SAFETY") {
+      scheduleBatch.update(targetRef, schedule.switchId ? { status: desiredStatus, updatedAt: Timestamp.fromDate(now) } : { status: desiredStatus, lastChangedSource: "SCHEDULE", updatedAt: Timestamp.fromDate(now) });
       const eventRef = db.collection(`households/${DEMO_HOUSEHOLD_ID}/events`).doc(`schedule-${scheduleDoc.id}-${now.toISOString().slice(0, 13)}`);
-      scheduleBatch.set(eventRef, { id: eventRef.id, householdId: DEMO_HOUSEHOLD_ID, deviceId: schedule.deviceId, source: "SCHEDULE", message: `${device.name} changed to ${desiredStatus} by schedule.`, createdAt: Timestamp.fromDate(now) }, { merge: true });
+      scheduleBatch.set(eventRef, { id: eventRef.id, householdId: DEMO_HOUSEHOLD_ID, deviceId: schedule.deviceId, source: "SCHEDULE", message: `${device.name}${schedule.switchId ? ` ${target.name ?? schedule.switchId}` : ""} changed to ${desiredStatus} by schedule.`, createdAt: Timestamp.fromDate(now) }, { merge: true });
       const alertRef = db.collection(`households/${DEMO_HOUSEHOLD_ID}/alerts`).doc(`schedule-alert-${scheduleDoc.id}-${desiredStatus}-${now.toISOString().slice(0, 13)}`);
       scheduleBatch.set(alertRef, { id: alertRef.id, householdId: DEMO_HOUSEHOLD_ID, severity: "INFO", message: `${device.name} turned ${desiredStatus} by its schedule.`, source: "SCHEDULE", deviceId: schedule.deviceId, read: false, createdAt: Timestamp.fromDate(now) }, { merge: true });
       scheduleWrites += 3;

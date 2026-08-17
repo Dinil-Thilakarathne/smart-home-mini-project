@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { signInAnonymously } from "firebase/auth";
-import { collection, onSnapshot, orderBy, query, limit, updateDoc, doc } from "firebase/firestore";
+import { collection, onSnapshot, orderBy, query, limit, updateDoc, doc, getDocs } from "firebase/firestore";
 import type { Device, DeviceLog, Schedule, UsageRecord } from "@smart-home/shared";
 import { DEMO_HOUSEHOLD_ID, deviceCollectionPath, deviceLogCollectionPath, scheduleCollectionPath, switchCollectionPath } from "@smart-home/shared";
 import { firebaseAuth, firestore } from "./firebase";
@@ -53,7 +53,10 @@ export function useDemoSwitches(deviceId: string) {
     return () => unsubscribe();
   }, [deviceId]);
   async function toggleSwitch(switchId: string, status: string) {
-    await updateDoc(doc(firestore, `${switchCollectionPath(DEMO_HOUSEHOLD_ID, deviceId)}/${switchId}`), { status: status === "ON" ? "OFF" : "ON", updatedAt: new Date().toISOString() });
+    const nextStatus = status === "ON" ? "OFF" : "ON";
+    await updateDoc(doc(firestore, `${switchCollectionPath(DEMO_HOUSEHOLD_ID, deviceId)}/${switchId}`), { status: nextStatus, updatedAt: new Date().toISOString() });
+    const nextSwitches = (await getDocs(collection(firestore, switchCollectionPath(DEMO_HOUSEHOLD_ID, deviceId)))).docs;
+    await updateDoc(doc(firestore, `households/${DEMO_HOUSEHOLD_ID}/devices/${deviceId}`), { status: nextSwitches.some((item) => item.data().status === "ON") ? "ON" : "OFF", lastChangedSource: "USER", updatedAt: new Date().toISOString() });
   }
   return { switches, toggleSwitch };
 }

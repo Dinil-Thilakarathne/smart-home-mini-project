@@ -14,6 +14,7 @@ import { signInAnonymously } from "firebase/auth";
 import {
   collection,
   doc,
+  getDocs,
   onSnapshot,
   orderBy,
   query,
@@ -156,6 +157,10 @@ export default function SimulatorPage() {
   async function setDeviceStatus(device: Device) {
     const status = device.status === "ON" ? "OFF" : "ON";
     try {
+      if (device.type === "switch-unit") {
+        const switchDocs = await getDocs(collection(firestore, switchCollectionPath(DEMO_HOUSEHOLD_ID, device.id)));
+        await Promise.all(switchDocs.docs.map((item) => updateDoc(item.ref, { status, updatedAt: new Date().toISOString() })));
+      }
       await updateDoc(
         doc(firestore, devicePath(DEMO_HOUSEHOLD_ID, device.id)),
         {
@@ -534,9 +539,9 @@ function DeviceInspector({
           ? "Monitoring only"
           : unavailable
             ? "Control unavailable"
-            : device.status === "ON"
-              ? "Turn power off"
-              : "Turn power on"}
+            : device.type === "switch-unit"
+              ? device.status === "ON" ? "Turn all switches off" : "Turn all switches on"
+              : device.status === "ON" ? "Turn power off" : "Turn power on"}
       </button>
     </div>
   );
@@ -573,6 +578,8 @@ function SwitchPanel({ deviceId }: { deviceId: string }) {
       ),
       { status, updatedAt: new Date().toISOString() },
     );
+    const nextSwitches = (await getDocs(collection(firestore, switchCollectionPath(DEMO_HOUSEHOLD_ID, deviceId)))).docs;
+    await updateDoc(doc(firestore, devicePath(DEMO_HOUSEHOLD_ID, deviceId)), { status: nextSwitches.some((switchDoc) => switchDoc.data().status === "ON") ? "ON" : "OFF", lastChangedSource: "USER", updatedAt: new Date().toISOString() });
   }
   return (
     <div className="mt-5 border-t border-[#e8ede8] pt-5">
